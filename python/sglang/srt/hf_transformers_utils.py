@@ -143,6 +143,8 @@ def get_config(
     config = AutoConfig.from_pretrained(
         model, trust_remote_code=trust_remote_code, revision=revision, **kwargs
     )
+    config.num_hidden_layers = 1
+    print(config)
     if (
         config.architectures is not None
         and config.architectures[0] == "Phi4MMForCausalLM"

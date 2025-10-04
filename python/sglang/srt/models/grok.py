@@ -452,7 +452,8 @@ class Grok1Attention(nn.Module):
             logit_capping_method=logit_capping_method,
             prefix=add_prefix("attn", prefix),
         )
-        self.attn.xai_temperature_len = getattr(self.config, "attn_temperature_len", -1)
+        self.attn.xai_temperature_len = -1
+        # self.attn.xai_temperature_len = getattr(self.config, "attn_temperature_len", -1)
 
     def forward(
         self,
@@ -483,11 +484,18 @@ class Grok1Attention(nn.Module):
                     hidden_states
                 )
 
+        print("hidden_states before qkv", hidden_states.shape, hidden_states)
+        print("qkv_proj.weight shape",self.qkv_proj.weight.shape)
         qkv, _ = self.qkv_proj(hidden_states)
+        print("qkv", qkv.shape, qkv)
         dispose_tensor(hidden_states)
 
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
+        print("q", q)
+        print("k", k)
         q, k = self.rotary_emb(positions, q, k)
+        print("q after", q)
+        print("k after", k)
 
         if debug_tensor_dump_output_folder:
             num_tokens = q.shape[0]
@@ -518,6 +526,7 @@ class Grok1Attention(nn.Module):
             )
 
         attn_output = self.attn(q, k, v, forward_batch)
+        print("attn_output", attn_output)
         del q, k, v, qkv
 
         if debug_tensor_dump_output_folder:
@@ -669,11 +678,13 @@ class Grok1DecoderLayer(nn.Module):
             dispose_flag = True
             dispose_tensor(hidden_states_original)
 
+        print(f"hidden_states self_attn before: {hidden_states.shape}, {hidden_states}")
         hidden_states = self.self_attn(
             positions=positions,
             hidden_states=hidden_states,
             forward_batch=forward_batch,
         )
+        print(f"hidden_states self_attn after: {hidden_states.shape}, {hidden_states}")
 
         if get_tensor_model_parallel_world_size() > 1:
             hidden_states = tensor_model_parallel_all_reduce(hidden_states)
@@ -758,6 +769,7 @@ class Grok1Model(nn.Module):
             hidden_states.mul_(self.config.embedding_multiplier_scale)
         else:
             hidden_states = input_embeds
+        print(f"hidden_states: {hidden_states.shape}, {hidden_states}")
 
         residual, deferred_norm = None, None
         for i in range(len(self.layers)):
@@ -900,6 +912,9 @@ class Grok1ForCausalLM(nn.Module):
         if debug_tensor_dump_output_folder:
             dump_to_file(debug_tensor_dump_output_folder, "input_ids", input_ids)
 
+        print(f"input_ids: {input_ids.shape}, {input_ids[:10]}")
+        print(f"positions: {positions.shape}, {positions[:10]}")
+        print(f"input_embeds: {input_embeds}")
         hidden_states = self.model(input_ids, positions, forward_batch, input_embeds)
         return self.logits_processor(
             input_ids, hidden_states, self.lm_head, forward_batch
