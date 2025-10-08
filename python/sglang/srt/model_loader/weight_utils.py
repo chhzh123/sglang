@@ -784,7 +784,6 @@ def initialize_dummy_weights(
     # Handle Linear modules (transpose aware)
     for prefix, mod in model.named_modules():
         if isinstance(mod, LinearBase):
-            print("get LinearBase")
             w = mod.weight
             b = mod.bias
             in_f, out_f = mod.input_size, mod.output_size
@@ -805,6 +804,7 @@ def initialize_dummy_weights(
 
     # Fill remaining floating tensors generically
     for name, tensor in model.state_dict().items():
+        print(name, tensor.dtype)
         if name in processed or not torch.is_floating_point(tensor):
             continue
         gen_dtype = _np_gen_dtype_for_torch(tensor.dtype)

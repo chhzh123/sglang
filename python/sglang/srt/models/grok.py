@@ -452,8 +452,7 @@ class Grok1Attention(nn.Module):
             logit_capping_method=logit_capping_method,
             prefix=add_prefix("attn", prefix),
         )
-        self.attn.xai_temperature_len = -1
-        # self.attn.xai_temperature_len = getattr(self.config, "attn_temperature_len", -1)
+        self.attn.xai_temperature_len = getattr(self.config, "attn_temperature_len", -1)
 
     def forward(
         self,
@@ -484,18 +483,14 @@ class Grok1Attention(nn.Module):
                     hidden_states
                 )
 
-        print("hidden_states before qkv", hidden_states.shape, hidden_states)
-        print("qkv_proj.weight shape",self.qkv_proj.weight.shape)
         qkv, _ = self.qkv_proj(hidden_states)
-        print("qkv", qkv.shape, qkv)
         dispose_tensor(hidden_states)
 
         q, k, v = qkv.split([self.q_size, self.kv_size, self.kv_size], dim=-1)
-        print("q", q)
-        print("k", k)
+        # 2) Split is a view: putting them back together should exactly match qkv
+        recon = torch.cat([q, k, v], dim=-1)
         q, k = self.rotary_emb(positions, q, k)
-        print("q after", q)
-        print("k after", k)
+        
 
         if debug_tensor_dump_output_folder:
             num_tokens = q.shape[0]
@@ -526,7 +521,7 @@ class Grok1Attention(nn.Module):
             )
 
         attn_output = self.attn(q, k, v, forward_batch)
-        print("attn_output", attn_output)
+        print("attn_output", attn_output.shape, attn_output)
         del q, k, v, qkv
 
         if debug_tensor_dump_output_folder:
